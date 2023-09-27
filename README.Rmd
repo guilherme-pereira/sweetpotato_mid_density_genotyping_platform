@@ -26,7 +26,6 @@ require(mappoly)
 require(AGHmatrix)
 require(factoextra)
 require(plotly)
-require(ggfortify)
 require(tidyverse)
 ```
 
