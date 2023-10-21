@@ -1,37 +1,46 @@
 ---
 title: "Sweetpotato Analysis"
-date: September 27, 2023
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, eval = FALSE)
+source("https://raw.githubusercontent.com/YinLiLin/CMplot/master/R/CMplot.r")
 ```
 
 # Introduction
 
-The studied population comprises a collection of cultivars and three bi-parental populations: Beauregard x Regal, its reciprocal cross, and Beauregard x Uplifter. In total, 376 individuals were genotyped using the DArTag platform. The aim of this analysis is to assess the DArTag genotyping technology in a two-fold strategy: 
+In this study, we focused on a sweetpotato population comprised of various cultivars and three bi-parental populations: Beauregard x Regal, its reciprocal cross, and Beauregard x Uplifter. A total of 376 individuals from these groups were genotyped utilizing the DArTag platform.
 
-1) Considering the whole population, we will compute the genomic relationship matrix (G) and examine the distribution of the individuals in a Principal Component Analysis (PCA). It is expected that related individuals, i.e., full-sibs, will form clusters, while unrelated individuals will be scattered in the PCA plot. 
+Our primary objective was to evaluate the efficiency and accuracy of the DArTag genotyping technology. This evaluation was approached with a dual-strategy:
 
-2) For the bi-parental populations, we will test markers for Mendelian segregation and compute the recombination fractions. 
+ 1. For the entire studied population, we computed the genomic relationship matrix (G). Further, we conducted a Principal Component Analysis (PCA) to study the distribution of these individuals. Based on our analysis, we anticipate that closely related individuals, such as full-sibs, will cluster together in the PCA plot. Conversely, unrelated individuals should appear more dispersed.
 
-Finally, we will build a map and reconstruct the haplotypes of the F1 offspring."
+ 2. Within the bi-parental populations, we aimed to test markers for their adherence to Mendelian segregation patterns and to calculate the recombination fractions.
 
+As a concluding step, a genetic map will be constructed, using offspring from the Beauregard x Regal and its reciprocal cross. 
 
-Loading packages
+# Loading necessary packages
 
-```{r load, results=FALSE, message=FALSE, warning=FALSE}
+```{r load, results=FALSE, message=FALSE, warning=FALSE, eval=TRUE}
 require(mappoly)
 require(AGHmatrix)
 require(factoextra)
-require(plotly)
+library(plot3D)
 require(tidyverse)
+require(gplots)
+require(CMplot)
 ```
 
-Auxiliary functions to get *Ipomea trifida* genome position and parallel computations.
+```{r load_image, eval=TRUE, results='hide', echo=FALSE}
+load(file = "~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/misc/result_5_3_10_400.rda")
+```
 
-```{r aux_func, results=FALSE, message=FALSE, warning=FALSE}
+# Auxiliary functions 
+
+This function get *Ipomea trifida* genome position in the pre-constructed by [Mollinari et al. 2020](https://doi.org/10.1534/g3.119.400620)
+```{r aux_func1, results=FALSE, message=FALSE, warning=FALSE}
 #### Get I. trifida genome from BT map ####
 get_trifida<-function(x){
   x<-x[grepl("Tf", x)]
@@ -46,12 +55,23 @@ get_trifida<-function(x){
   names(res)<-x
   return(res)
 }
-#### Parallel functions to build maps in multiple chromosomes ####
+```
+
+The next functions will be used to build maps in multiple chromosomes using parallel processing
+
+```{r aux_func2, results=FALSE, message=FALSE, warning=FALSE}
 phasing_and_hmm_rf<-function(X,
                              thres.twopt = 5,
                              thres.hmm = 3,
+                             sub.map.size.diff.limit = 10,
                              phase.number.limit = 1000){
-  fl<-paste0("map_output/output_map_ch_", X$ch, ".txt")
+  fl<-paste0("output_map_ch_",
+             thres.twopt, "_",
+             thres.hmm, "_",
+             sub.map.size.diff.limit, "_",
+             X$ch, "_",
+             phase.number.limit,
+             ".txt")
   sink(fl)
   map<-est_rf_hmm_sequential(input.seq = X$seq,
                              start.set = 3,
@@ -62,24 +82,24 @@ phasing_and_hmm_rf<-function(X,
                              tol = 10e-2,
                              tol.final = 10e-2,
                              phase.number.limit = phase.number.limit,
-                             sub.map.size.diff.limit = 10,
-                             info.tail = TRUE)
+                             sub.map.size.diff.limit = sub.map.size.diff.limit,
+                             info.tail = TRUE, 
+                             detailed.verbose = TRUE)
   sink()
   return(map)
 }
-error_model<-function(X, tol = 10e-4){
+error_model<-function(X, error = 0.1, tol = 10e-4){
   X$maps[[1]]$seq.rf <- rep(0.01, length(X$maps[[1]]$seq.rf))
   x<-est_full_hmm_with_global_error(input.map = X,
-                                    error = 0.05,
+                                    error = error,
                                     tol = tol,
                                     verbose = FALSE)
   return(x)
 }
 ```
 
-# DArTag data
-
-```{r dart_data}
+# Loading DArTag dose data
+```{r dart_data, eval = TRUE}
 ## Loading Dart allele dose file
 dose.Dart <- read.csv("DSp22-7577_Allele_Dose_Report_updateID.csv",
                       skip = 7, row.names = 1)
@@ -107,30 +127,63 @@ pop.part[pop.part==""] <- "Pop"
 heatmap(G.mat)
 ```
 
-# Principal component analysis
+# SNP-density plot
 
-```{r pca}
-prin_comp2 <- prcomp(G.mat, scale = TRUE)
-
-#### Explained variances vs dimensions
-fviz_eig(prin_comp2)
-
-#### Extracting components for PCA 3D plot
-components <- prin_comp2[["x"]]
-components <- data.frame(components)
-components$PC2 <- -components$PC2
-components$PC3 <- -components$PC3
-fig <- plot_ly(components, x = ~PC1, y = ~PC2, z = ~PC3,
-               color = pop.part,
-               colors = RColorBrewer::brewer.pal(n = length(unique(pop.part)), name = 'Dark2'),
-               sizes = 200) %>%
-  add_markers(size = 12)
-fig <- fig %>%
-  layout(scene = list(bgcolor = "#e5ecf6"))
+```{r density, eval = TRUE}
+u <- dose.Dart[,3:4]
+u <- rownames_to_column(u, "SNP")
+colnames(u) <- c("SNP", "Chromosome", "Position")
+head(u)
+CMplot::CMplot(u,type = "p", plot.type = "d", bin.size = 1e6,
+               file = "pdf", dpi = 300, main = "",
+               file.output = FALSE, verbose = TRUE,
+               width = 9, height = 6)
 ```
 
-```{r, echo=FALSE, fig.height=7, fig.width=8}
-fig
+# Principal component analysis
+
+```{r pca, eval = TRUE}
+G.mat <- G.mat[sort(rownames(G.mat)), sort(colnames(G.mat))]
+pop.part <- character(nrow(G.mat))
+pop.part[str_detect(rownames(G.mat), "BR")] <- "F1 Beauregard x Regal"
+pop.part[str_detect(rownames(G.mat), "RB")] <- "F1 Regal x Beauregard"
+pop.part[str_detect(rownames(G.mat), "BEAUREGARD")] <- "Beauregard"
+pop.part[str_detect(rownames(G.mat), "REGAL")] <- "Regal"
+pop.part[str_detect(rownames(G.mat), "CASE")] <- "F1 Beauregard x Uplift"
+pop.part[pop.part==""] <- "Diverse population"
+
+colors_vector <- c(
+  "Beauregard"       = "#4053d3",
+  "F1 Beauregard x Regal"     = "#ddb310",
+  "F1 Regal x Beauregard"        = "#b51d14",
+  "Regal" = "#00beff",
+  "F1 Beauregard x Uplift"      = "#00b25d",
+  "Diverse population"       = "gray39"
+)
+A <- prcomp(G.mat)
+
+#### Explained variances vs dimensions
+fviz_eig(A)
+PC1 <- A$x[,1]
+PC2 <- A$x[,2]
+PC3 <- A$x[,3]
+par(mar = c(0,0.7,0,4), xpd = TRUE)
+scatter3D(x = PC1,
+          y = PC2,
+          z = PC3,
+          box=TRUE,
+          pch=19, colkey = F,
+          colvar = NULL,
+          col = colors_vector[pop.part], 
+          cex = 1,
+          bty="g",
+          ticktype="detailed",
+          theta = -220, phi = 20,
+          xlab = "PC1", ylab = "PC2", zlab = "PC3")
+legend(x = .3, y = -.35, 
+       legend = names(colors_vector), 
+       col = colors_vector,
+       pch = rep(19, length(colors_vector)), border = FALSE, bty = "n")
 ```
 
 # Genetic mapping
@@ -162,97 +215,124 @@ plot(dat.dart)
 
 ```{r, filtering}
 #### Filtering ####
-dat1 <- filter_missing(dat.dart, type = 'marker', filter.thres = 0.1, inter = FALSE)
-dat1 <- filter_missing(dat1, type = 'individual', filter.thres = 0.1, inter = FALSE)
-#### In the bi-parental populations, some individuals were filtered 
-#### out due to their kinship relationship with the parents not aligning 
-#### as expected, which would ideally be intermediate between the two parents
+dat.filt <- filter_missing(dat.dart, type = 'marker', filter.thres = 0.1, inter = FALSE)
+dat.filt <- filter_missing(dat.filt, type = 'individual', filter.thres = 0.1, inter = FALSE)
+#### Filtering individuals that are not from B x R cross
 rm.ind <- c("RB3", "RB6", "RB11", "RB15", "RB22", "RB30", "RB41",
             "RB44", "RB46", "RB50", "RB52", "RB54", "RB56",
             "RB58", "BR2", "BR3", "BR5", "BR7", "BR8", "BR9",
             "BR10", "BR13", "BR20", "BR21", "BR24", "BR26",
             "BR27", "BR28", "BR30", "BR31", "BR40", "BR41")
-dat1 <- filter_individuals(input.data = dat1, ind.to.remove = rm.ind, inter = FALSE)
+dat.filt <- filter_individuals(input.data = dat.filt, ind.to.remove = rm.ind, inter = FALSE)
 #### Filtering out distorted markers
-s.f <- filter_segregation(dat1, chisq.pval.thres = 0.05/dat1$n.mrk, inter = F)
+s.f <- filter_segregation(dat.filt, chisq.pval.thres = 0.05/dat.filt$n.mrk, inter = F)
 s <- make_seq_mappoly(s.f)
-plot(s)
-s
 ```
+```{r initial_sequence, eval=TRUE}
+s
+plot(s)
+```
+
 
 ## Pairwise recombination fraction
 
 ```{r twopts}
 #### Two-points ####
-tpt <- est_pairwise_rf2(s, ncpus = 7)
+tpt <- est_pairwise_rf(s, ncpus = 32)
 m <- rf_list_to_matrix(tpt, thresh.LOD.ph = 1.0, thresh.LOD.rf = 1.0)
-so <- get_genomic_order(s)
-plot(so)
-so <- make_seq_mappoly(so)
+so <- make_seq_mappoly(get_genomic_order(s))
 plot(m, ord = so, fact = 5)
 ```
-
-## Grouping
-
-```{r group}
-gr <- group_mappoly(m, expected.groups = 20, inter = FALSE, comp.mat = TRUE)
-plot(gr)
-gr
-heatmap(gr$seq.vs.grouped.snp, Colv = NA)
+```{r mat plot, results='hide', eval=TRUE, echo=FALSE}
+plot(m, ord = so, fact = 5)
 ```
 
 ## Gathering information for each linkage group
 
-```{r LGs, results=FALSE}
+```{r LGs, results='hide'}
 #### Assembling linkage groups (order based on genome) ####
 LGS <- vector("list", 15)
 #### loading BT map
-load("Mollinari_et_al_2020_BT_map.rda")
+load("~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/Mollinari_et_al_2020_BT_map.rda")
 names(maps) <- names(LGS) <- 1:15
 #### preparing linkage groups for phasing
 for(i in names(LGS)){
-  s.temp <- make_seq_mappoly(dat1, s$seq.mrk.names[s$chrom == i])
+  s.temp <- make_seq_mappoly(dat.filt, s$seq.mrk.names[s$chrom == i])
   tpt.temp <- est_pairwise_rf(s.temp)
   m.temp <- rf_list_to_matrix(tpt.temp)
   bt.o <- get_trifida(names(maps[[i]]))
   A <- abs(kronecker(s.temp$genome.pos, t(bt.o), FUN = "-"))
-  s.new <- make_seq_mappoly(dat1, s.temp$seq.mrk.names[order(apply(A, 1, which.min))])
+  s.new <- make_seq_mappoly(dat.filt, s.temp$seq.mrk.names[order(apply(A, 1, which.min))])
   LGS[[i]] <- list(seq = s.new, tpt = tpt.temp, ch = i, mat = m.temp)
 }
 ```
-
-```{r map_construction, eval=FALSE}
-#### Parallel map construction and genotype probability computation ####
+## Parallel map construction
+```{r map_construction}
+setwd("~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/map_output/")
 {
   cl <- parallel::makeCluster(15)
   parallel::clusterEvalQ(cl, require(mappoly))
-  parallel::clusterExport(cl,  "dat1")
-  MAPs.geno <- parallel::parLapply(cl, LGS, phasing_and_hmm_rf, 
-                                   thres.twopt = 5, thres.hmm = 3, 
-                                   phase.number.limit = 1000)
+  parallel::clusterExport(cl,  "dat.filt")
+  initial.maps <- parallel::parLapply(cl, LGS, 
+                                   phasing_and_hmm_rf, 
+                                   thres.twopt = 5, 
+                                   thres.hmm = 3, 
+                                   sub.map.size.diff.limit = 10,
+                                   phase.number.limit = 400)
   parallel::stopCluster(cl)
 }
-save(MAPs.geno, dat1, file = "result_5_3_1000.rda")
+save(initial.maps, 
+     dat.filt, 
+     file = "~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/result_5_3_10_400.rda")
+setwd("~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/map_output/")
 {
   cl <- parallel::makeCluster(15)
   parallel::clusterEvalQ(cl, require(mappoly))
-  parallel::clusterExport(cl,  "dat1")
-  final.maps <- parallel::parLapply(cl, MAPs.geno, error_model, tol = 10e-3)
-  genoprob <- parallel::parLapply(cl, final.maps, calc_genoprob_error, step = 1, error = 0.05)
+  parallel::clusterExport(cl,  "dat.filt")
+  error.maps <- parallel::parLapply(cl, 
+                                    initial.maps, 
+                                    error_model, 
+                                    error = 0.1, 
+                                    tol = 10e-4)
   parallel::stopCluster(cl)
+  plot_map_list(error.maps, col = viridis::turbo(20)[3:18])
 }
-homologprob<-calc_homologprob(genoprob)
-save(MAPs.geno, final.maps, genoprob, homologprob, dat1, file = "result_5_3_1000.rda")
-#map1 <- phasing_and_hmm_rf(LGS[[2]], thres.twopt = 5, thres.hmm = 10, phase.number.limit = 1000)
-map1 <- split_and_rephase(final.maps[[1]], twopt = LGS[[1]]$tpt, gap.threshold = 20, verbose = TRUE)
+```
+```{r map1_plot, results='hide', eval=TRUE, echo=FALSE}
+plot_map_list(error.maps, col = viridis::turbo(20)[3:18])
 ```
 
-```{r plot}
-load("~/repos/collaborations/sweetpotato-breeding-insight/corrected_data/result_5_3_1000.rda")
-plot(m, ord = unlist(sapply(final.maps, function(x) x$info$mrk.names)), fact = 3)
-plot_map_list(final.maps, col = mp_pallet3(15))
-plot_genome_vs_map(final.maps, same.ch.lg = TRUE)
-plot(homologprob)
+## Removing gaps
+We addressed gaps in chromosomes 4 and 8 by eliminating one and three markers, respectively. While chromosome 10 exhibited a significant gap of 53.77 cM, we opted not to remove markers from its extremities. Doing so would have necessitated the removal of seven markers from the start and another five from the end, all of which were interlinked.
+
+```{r removing_gaps}
+final.maps <- error.maps
+plot_map_list(final.maps, col = viridis::turbo(20)[3:18])
+#### Chr 4 ####
+print(final.maps[[4]], detailed = T)
+final.maps[[4]] <- drop_marker(final.maps[[4]], 1)
+#### Chr 8 ####
+print(final.maps[[8]], detailed = T)
+final.maps[[8]] <- drop_marker(final.maps[[8]], 1:3)
+```
+
+
+```{r genoprob}
+genoprob <- vector("list", 15)
+for(i in 1:15){
+  genoprob[[i]] <- calc_genoprob_error(final.maps[[i]], step = 1, error = 0.1)   
+}
+
+homologprob <- calc_homologprob(genoprob)
+
+save.image(file = "~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/result_5_3_10_400.rda")
+```
+
+```{r plot, eval = TRUE}
+summary_maps(final.maps)
+plot_map_list(final.maps, col = viridis::turbo(20)[3:18])
+plot_genome_vs_map(final.maps, same.ch.lg = TRUE, alpha = 1, size = 2)
+plot(homologprob, use.plotly = FALSE)
 for(i in 1:15){
   plot(final.maps[[i]], mrk.names = T, cex = .5, P = paste0("B_",i), Q = paste0("R_", i))  
 }

@@ -1,4 +1,13 @@
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+*.rda
+*.rdb
+*.rds
+*.rdx
+*.DS_Store
+
+misc/
+README_cache/
+README_files/
