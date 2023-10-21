@@ -1,29 +1,37 @@
----
-title: "Sweetpotato Analysis"
-date: "20 October, 2023"
-output: 
-  html_document:
-    keep_md: true
----
-
-
+Using mid-density DarTag SNP platform to assess population structure and
+build a genetic map of a diverse sweetpotato population
+================
+21 October, 2023
 
 # Introduction
 
-In this study, we focused on a sweetpotato population comprised of various cultivars and three bi-parental populations: Beauregard x Regal, its reciprocal cross, and Beauregard x Uplifter. A total of 376 individuals from these groups were genotyped utilizing the DArTag platform.
+In this study, we focused on a sweetpotato population comprised of
+various cultivars and three bi-parental populations: Beauregard x Regal,
+its reciprocal cross, and Beauregard x Uplifter. A total of 376
+individuals from these groups were genotyped utilizing the DArTag
+platform.
 
-Our primary objective was to evaluate the efficiency and accuracy of the DArTag genotyping technology. This evaluation was approached with a dual-strategy:
+Our primary objective was to evaluate the efficiency and accuracy of the
+DArTag genotyping technology. This evaluation was approached with a
+dual-strategy:
 
- 1. For the entire studied population, we computed the genomic relationship matrix (G). Further, we conducted a Principal Component Analysis (PCA) to study the distribution of these individuals. Based on our analysis, we anticipate that closely related individuals, such as full-sibs, will cluster together in the PCA plot. Conversely, unrelated individuals should appear more dispersed.
+1.  For the entire studied population, we computed the genomic
+    relationship matrix (G). Further, we conducted a Principal Component
+    Analysis (PCA) to study the distribution of these individuals. Based
+    on our analysis, we anticipate that closely related individuals,
+    such as full-sibs, will cluster together in the PCA plot.
+    Conversely, unrelated individuals should appear more dispersed.
 
- 2. Within the bi-parental populations, we aimed to test markers for their adherence to Mendelian segregation patterns and to calculate the recombination fractions.
+2.  Within the bi-parental populations, we aimed to test markers for
+    their adherence to Mendelian segregation patterns and to calculate
+    the recombination fractions.
 
-As a concluding step, a genetic map will be constructed, using offspring from the Beauregard x Regal and its reciprocal cross. 
+As a concluding step, a genetic map will be constructed, using offspring
+from the Beauregard x Regal and its reciprocal cross.
 
 # Loading necessary packages
 
-
-```r
+``` r
 require(mappoly)
 require(AGHmatrix)
 require(factoextra)
@@ -33,14 +41,13 @@ require(gplots)
 require(CMplot)
 ```
 
+# Auxiliary functions
 
+This function retrieves the *Ipomea trifida* genome positions from the
+map pre-constructed by [Mollinari et
+al. 2020](https://doi.org/10.1534/g3.119.400620)
 
-# Auxiliary functions 
-
-This function get *Ipomea trifida* genome position in the pre-constructed by [Mollinari et al. 2020](https://doi.org/10.1534/g3.119.400620)
-
-```r
-#### Get I. trifida genome from BT map ####
+``` r
 get_trifida<-function(x){
   x<-x[grepl("Tf", x)]
   w<-strsplit(x, "_")
@@ -56,10 +63,10 @@ get_trifida<-function(x){
 }
 ```
 
-The next functions will be used to build maps in multiple chromosomes using parallel processing
+The following functions are used to build maps across multiple
+chromosomes using parallel processing.
 
-
-```r
+``` r
 phasing_and_hmm_rf<-function(X,
                              thres.twopt = 5,
                              thres.hmm = 3,
@@ -98,45 +105,38 @@ error_model<-function(X, error = 0.1, tol = 10e-4){
 }
 ```
 
-# Loading DArTag dose data
+# Loading DArTag data
 
-```r
-## Loading Dart allele dose file
+``` r
 dose.Dart <- read.csv("DSp22-7577_Allele_Dose_Report_updateID.csv",
                       skip = 7, row.names = 1)
 dim(dose.Dart)
 ```
 
-```
-## [1] 3120  380
-```
+    ## [1] 3120  380
 
-```r
+``` r
 #### Six first columns of the data set
 dose.Dart[,1:6] %>% glimpse(width = 80)
 ```
 
-```
-## Rows: 3,120
-## Columns: 6
-## $ AvgCountRef <dbl> 188.282123, 250.572222, 101.626959, 40.175141, 59.000000, …
-## $ AvgCountSnp <dbl> 70.132394, 85.083916, 112.619048, 13.480851, 408.613260, 2…
-## $ Chrom       <chr> "Chr01", "Chr01", "Chr01", "Chr01", "Chr01", "Chr01", "Chr…
-## $ ChromPos    <int> 84128, 239479, 346934, 531131, 696870, 821046, 940930, 113…
-## $ X95.145     <int> 3, 3, 2, 6, 0, 0, 2, 5, 6, 6, 6, 6, 1, 6, 6, 0, 4, 2, 6, 3…
-## $ RB1         <int> 4, 5, 2, 5, 0, 1, 5, 6, 0, 6, 6, 5, 3, 6, 6, 1, 4, 2, 6, 3…
-```
+    ## Rows: 3,120
+    ## Columns: 6
+    ## $ AvgCountRef <dbl> 188.282123, 250.572222, 101.626959, 40.175141, 59.000000, …
+    ## $ AvgCountSnp <dbl> 70.132394, 85.083916, 112.619048, 13.480851, 408.613260, 2…
+    ## $ Chrom       <chr> "Chr01", "Chr01", "Chr01", "Chr01", "Chr01", "Chr01", "Chr…
+    ## $ ChromPos    <int> 84128, 239479, 346934, 531131, 696870, 821046, 940930, 113…
+    ## $ X95.145     <int> 3, 3, 2, 6, 0, 0, 2, 5, 6, 6, 6, 6, 1, 6, 6, 0, 4, 2, 6, 3…
+    ## $ RB1         <int> 4, 5, 2, 5, 0, 1, 5, 6, 0, 6, 6, 5, 3, 6, 6, 1, 4, 2, 6, 3…
 
-```r
+``` r
 dat.temp <- t(dose.Dart[,-c(1:4)])
 dim(dat.temp)
 ```
 
-```
-## [1]  376 3120
-```
+    ## [1]  376 3120
 
-```r
+``` r
 #### Missing data = -9
 dat.temp[is.na(dat.temp)] <- -9
 #### Screening out markers with more than 20% of missing data
@@ -145,91 +145,75 @@ dat.temp <- dat.temp[,-which(apply(dat.temp, 2, function(x) sum(x==-9)) > .1*nro
 G.mat <- AGHmatrix::Gmatrix(dat.temp, method = "VanRaden", ploidy = 6)
 ```
 
-```
-## Initial data: 
-## 	Number of Individuals: 376 
-## 	Number of Markers: 3072 
-## 
-## Missing data check: 
-## 	Total SNPs: 3072 
-## 	 0 SNPs dropped due to missing data threshold of 0.5 
-## 	Total of: 3072  SNPs 
-## 
-## MAF check: 
-## 	No SNPs with MAF below 0 
-## 
-## Heterozigosity data check: 
-## 	No SNPs with heterozygosity, missing threshold of =  0 
-## 
-## Summary check: 
-## 	Initial:  3072 SNPs 
-## 	Final:  3072  SNPs ( 0  SNPs removed) 
-##  
-## Completed! Time = 0.337  seconds
-```
+    ## Initial data: 
+    ##  Number of Individuals: 376 
+    ##  Number of Markers: 3072 
+    ## 
+    ## Missing data check: 
+    ##  Total SNPs: 3072 
+    ##   0 SNPs dropped due to missing data threshold of 0.5 
+    ##  Total of: 3072  SNPs 
+    ## 
+    ## MAF check: 
+    ##  No SNPs with MAF below 0 
+    ## 
+    ## Heterozigosity data check: 
+    ##  No SNPs with heterozygosity, missing threshold of =  0 
+    ## 
+    ## Summary check: 
+    ##  Initial:  3072 SNPs 
+    ##  Final:  3072  SNPs ( 0  SNPs removed) 
+    ##  
+    ## Completed! Time = 0.614  seconds
 
-```r
-#### Different color for population partitions
-pop.part <- character(nrow(G.mat))
-pop.part[str_detect(rownames(G.mat), "BR")] <- "F1.BR"
-pop.part[str_detect(rownames(G.mat), "RB")] <- "F1.RB"
-pop.part[str_detect(rownames(G.mat), "BEAUREGARD")] <- "Beau"
-pop.part[str_detect(rownames(G.mat), "REGAL")] <- "Regal"
-pop.part[str_detect(rownames(G.mat), "CASE")] <- "F1.BU"
-pop.part[pop.part==""] <- "Pop"
-
+``` r
 #### Heat map of G matrix (RB are mostly clustered)
 heatmap(G.mat)
 ```
 
-![](README_files/figure-html/dart_data-1.png)<!-- -->
+![](README_files/figure-gfm/dart_data-1.png)<!-- -->
 
 # SNP-density plot
 
-
-```r
+``` r
 u <- dose.Dart[,3:4]
 u <- rownames_to_column(u, "SNP")
 colnames(u) <- c("SNP", "Chromosome", "Position")
 head(u)
 ```
 
-```
-##               SNP Chromosome Position
-## 1 Chr01_000084128      Chr01    84128
-## 2 Chr01_000239479      Chr01   239479
-## 3 Chr01_000346934      Chr01   346934
-## 4 Chr01_000531131      Chr01   531131
-## 5 Chr01_000696870      Chr01   696870
-## 6 Chr01_000821046      Chr01   821046
-```
+    ##               SNP Chromosome Position
+    ## 1 Chr01_000084128      Chr01    84128
+    ## 2 Chr01_000239479      Chr01   239479
+    ## 3 Chr01_000346934      Chr01   346934
+    ## 4 Chr01_000531131      Chr01   531131
+    ## 5 Chr01_000696870      Chr01   696870
+    ## 6 Chr01_000821046      Chr01   821046
 
-```r
+``` r
 CMplot::CMplot(u,type = "p", plot.type = "d", bin.size = 1e6,
                file = "pdf", dpi = 300, main = "",
                file.output = FALSE, verbose = TRUE,
                width = 9, height = 6)
 ```
 
-```
-##  Marker density plotting.
-```
+    ##  Marker density plotting.
 
-![](README_files/figure-html/density-1.png)<!-- -->
+![](README_files/figure-gfm/density-1.png)<!-- -->
 
 # Principal component analysis
 
-
-```r
+``` r
 G.mat <- G.mat[sort(rownames(G.mat)), sort(colnames(G.mat))]
 pop.part <- character(nrow(G.mat))
+
+#### Different color for population partitions
 pop.part[str_detect(rownames(G.mat), "BR")] <- "F1 Beauregard x Regal"
 pop.part[str_detect(rownames(G.mat), "RB")] <- "F1 Regal x Beauregard"
 pop.part[str_detect(rownames(G.mat), "BEAUREGARD")] <- "Beauregard"
 pop.part[str_detect(rownames(G.mat), "REGAL")] <- "Regal"
 pop.part[str_detect(rownames(G.mat), "CASE")] <- "F1 Beauregard x Uplift"
 pop.part[pop.part==""] <- "Diverse population"
-
 colors_vector <- c(
   "Beauregard"       = "#4053d3",
   "F1 Beauregard x Regal"     = "#ddb310",
@@ -244,9 +228,9 @@ A <- prcomp(G.mat)
 fviz_eig(A)
 ```
 
-![](README_files/figure-html/pca-1.png)<!-- -->
+![](README_files/figure-gfm/pca-1.png)<!-- -->
 
-```r
+``` r
 PC1 <- A$x[,1]
 PC2 <- A$x[,2]
 PC3 <- A$x[,3]
@@ -269,14 +253,13 @@ legend(x = .3, y = -.35,
        pch = rep(19, length(colors_vector)), border = FALSE, bty = "n")
 ```
 
-![](README_files/figure-html/pca-2.png)<!-- -->
+![](README_files/figure-gfm/pca-2.png)<!-- -->
 
 # Genetic mapping
 
 ## Parsing data
 
-
-```r
+``` r
 #### Genetic mapping of F1 population
 f1 <- dose.Dart[,colnames(dose.Dart)[str_detect(colnames(dose.Dart), "BR") | str_detect(colnames(dose.Dart), "RB")]]
 p1<- dose.Dart[,colnames(dose.Dart)[str_detect(colnames(dose.Dart), "BEAUREGARD")]]
@@ -293,17 +276,91 @@ DF <- cbind(snp_id = names(mrk.id),
             chrom = chrom,
             genome_pos = genome.pos,
             f1[mrk.id,])
-dat.dart <- mappoly::table_to_mappoly(DF, ploidy = 6)
+dat.dart <- mappoly::table_to_mappoly(dat = DF, ploidy = 6, verbose = FALSE)
+dat.dart
+```
+
+    ## This is an object of class 'mappoly.data'
+    ##     Ploidy level:                            6 
+    ##     No. individuals:                         92 
+    ##     No. markers:                             1660 
+    ##     Missing data:                            4.2%
+    ##     Redundant markers:                       0.84%
+    ## 
+    ##     This dataset contains chromosome information.
+    ##     ----------
+    ##     No. of markers per dosage combination in both parents:
+    ##     P1 P2 freq
+    ##      0  1   46
+    ##      0  2   27
+    ##      0  3   19
+    ##      0  4   11
+    ##      0  5    6
+    ##      1  0   35
+    ##      1  1   46
+    ##      1  2   35
+    ##      1  3   46
+    ##      1  4   21
+    ##      1  5    9
+    ##      1  6    3
+    ##      2  0   19
+    ##      2  1   39
+    ##      2  2   75
+    ##      2  3   50
+    ##      2  4   39
+    ##      2  5   19
+    ##      2  6    4
+    ##      3  0    6
+    ##      3  1   28
+    ##      3  2   61
+    ##      3  3   92
+    ##      3  4   68
+    ##      3  5   46
+    ##      3  6   14
+    ##      4  0    7
+    ##      4  1   26
+    ##      4  2   49
+    ##      4  3   70
+    ##      4  4  130
+    ##      4  5   76
+    ##      4  6   24
+    ##      5  0    1
+    ##      5  1    8
+    ##      5  2   21
+    ##      5  3   38
+    ##      5  4   89
+    ##      5  5   91
+    ##      5  6   45
+    ##      6  1    6
+    ##      6  2    6
+    ##      6  3   18
+    ##      6  4   35
+    ##      6  5   56
+
+``` r
 plot(dat.dart)
 ```
 
+![](README_files/figure-gfm/parsing-1.png)<!-- -->
+
 ## Filtering
 
-
-```r
+``` r
 #### Filtering ####
 dat.filt <- filter_missing(dat.dart, type = 'marker', filter.thres = 0.1, inter = FALSE)
+dat.filt$n.mrk
+```
+
+    ## [1] 1476
+
+``` r
 dat.filt <- filter_missing(dat.filt, type = 'individual', filter.thres = 0.1, inter = FALSE)
+dat.filt$n.ind
+```
+
+    ## [1] 92
+
+``` r
 #### Filtering individuals that are not from B x R cross
 rm.ind <- c("RB3", "RB6", "RB11", "RB15", "RB22", "RB30", "RB41",
             "RB44", "RB46", "RB50", "RB52", "RB54", "RB56",
@@ -311,112 +368,149 @@ rm.ind <- c("RB3", "RB6", "RB11", "RB15", "RB22", "RB30", "RB41",
             "BR10", "BR13", "BR20", "BR21", "BR24", "BR26",
             "BR27", "BR28", "BR30", "BR31", "BR40", "BR41")
 dat.filt <- filter_individuals(input.data = dat.filt, ind.to.remove = rm.ind, inter = FALSE)
+```
+
+    ## Initial data: 
+    ##  Number of Individuals: 94 
+    ##  Number of Markers: 1476 
+    ## 
+    ## Missing data check: 
+    ##  Total SNPs: 1476 
+    ##   0 SNPs dropped due to missing data threshold of 0.5 
+    ##  Total of: 1476  SNPs 
+    ## 
+    ## MAF check: 
+    ##  No SNPs with MAF below 0 
+    ## 
+    ## Heterozigosity data check: 
+    ##  No SNPs with heterozygosity, missing threshold of =  0 
+    ## 
+    ## Summary check: 
+    ##  Initial:  1476 SNPs 
+    ##  Final:  1476  SNPs ( 0  SNPs removed) 
+    ##  
+    ## Completed! Time = 0.069  seconds
+
+![](README_files/figure-gfm/filtering-1.png)<!-- -->
+
+``` r
+dat.filt$n.mrk
+```
+
+    ## [1] 1476
+
+``` r
+dat.filt$n.ind
+```
+
+    ## [1] 60
+
+``` r
 #### Filtering out distorted markers
 s.f <- filter_segregation(dat.filt, chisq.pval.thres = 0.05/dat.filt$n.mrk, inter = F)
 s <- make_seq_mappoly(s.f)
+length(s$seq.num)
 ```
 
-```r
+    ## [1] 1285
+
+``` r
 s
 ```
 
-```
-## This is an object of class 'mappoly.sequence'
-##     ------------------------
-##     Parameters not estimated
-##     ------------------------
-##     Ploidy level:       6 
-##     No. individuals:    60 
-##     No. markers:        1285 
-## 
-##     ----------
-##     No. markers per sequence:
-##      chrom No.mrk
-##          1    106
-##         10     71
-##         11     58
-##         12     85
-##         13     90
-##         14     60
-##         15     63
-##          2     83
-##          3     91
-##          4    131
-##          5    130
-##          6     78
-##          7     85
-##          8     66
-##          9     88
-## 
-##     ----------
-##     No. of markers per dosage in both parents:
-##    dP1 dP2 freq
-##      0   1   30
-##      0   2   21
-##      0   3   11
-##      0   4    2
-##      1   0   18
-##      1   1   36
-##      1   2   32
-##      1   3   41
-##      1   4   16
-##      1   5    2
-##      1   6    1
-##      2   0   12
-##      2   1   32
-##      2   2   59
-##      2   3   44
-##      2   4   36
-##      2   5   17
-##      2   6    2
-##      3   0    6
-##      3   1   26
-##      3   2   54
-##      3   3   71
-##      3   4   61
-##      3   5   37
-##      3   6   10
-##      4   0    4
-##      4   1   21
-##      4   2   44
-##      4   3   69
-##      4   4   98
-##      4   5   70
-##      4   6   12
-##      5   1    3
-##      5   2   19
-##      5   3   31
-##      5   4   76
-##      5   5   71
-##      5   6   19
-##      6   3   10
-##      6   4   27
-##      6   5   34
-```
+    ## This is an object of class 'mappoly.sequence'
+    ##     ------------------------
+    ##     Parameters not estimated
+    ##     ------------------------
+    ##     Ploidy level:       6 
+    ##     No. individuals:    60 
+    ##     No. markers:        1285 
+    ## 
+    ##     ----------
+    ##     No. markers per sequence:
+    ##      chrom No.mrk
+    ##          1    106
+    ##         10     71
+    ##         11     58
+    ##         12     85
+    ##         13     90
+    ##         14     60
+    ##         15     63
+    ##          2     83
+    ##          3     91
+    ##          4    131
+    ##          5    130
+    ##          6     78
+    ##          7     85
+    ##          8     66
+    ##          9     88
+    ## 
+    ##     ----------
+    ##     No. of markers per dosage in both parents:
+    ##    dP1 dP2 freq
+    ##      0   1   30
+    ##      0   2   21
+    ##      0   3   11
+    ##      0   4    2
+    ##      1   0   18
+    ##      1   1   36
+    ##      1   2   32
+    ##      1   3   41
+    ##      1   4   16
+    ##      1   5    2
+    ##      1   6    1
+    ##      2   0   12
+    ##      2   1   32
+    ##      2   2   59
+    ##      2   3   44
+    ##      2   4   36
+    ##      2   5   17
+    ##      2   6    2
+    ##      3   0    6
+    ##      3   1   26
+    ##      3   2   54
+    ##      3   3   71
+    ##      3   4   61
+    ##      3   5   37
+    ##      3   6   10
+    ##      4   0    4
+    ##      4   1   21
+    ##      4   2   44
+    ##      4   3   69
+    ##      4   4   98
+    ##      4   5   70
+    ##      4   6   12
+    ##      5   1    3
+    ##      5   2   19
+    ##      5   3   31
+    ##      5   4   76
+    ##      5   5   71
+    ##      5   6   19
+    ##      6   3   10
+    ##      6   4   27
+    ##      6   5   34
 
-```r
+``` r
 plot(s)
 ```
 
-![](README_files/figure-html/initial_sequence-1.png)<!-- -->
-
+![](README_files/figure-gfm/initial_sequence-1.png)<!-- -->
 
 ## Pairwise recombination fraction
 
-
-```r
+``` r
 #### Two-points ####
 tpt <- est_pairwise_rf(s, ncpus = 32)
 m <- rf_list_to_matrix(tpt, thresh.LOD.ph = 1.0, thresh.LOD.rf = 1.0)
 so <- make_seq_mappoly(get_genomic_order(s))
 plot(m, ord = so, fact = 5)
 ```
-![](README_files/figure-html/mat plot-1.png)<!-- -->
+
+![](README_files/figure-gfm/mat%20plot-1.png)<!-- -->
 
 ## Gathering information for each linkage group
 
-
-```r
+``` r
 #### Assembling linkage groups (order based on genome) ####
 LGS <- vector("list", 15)
 #### loading BT map
@@ -433,9 +527,10 @@ for(i in names(LGS)){
   LGS[[i]] <- list(seq = s.new, tpt = tpt.temp, ch = i, mat = m.temp)
 }
 ```
+
 ## Parallel map construction
 
-```r
+``` r
 setwd("~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/map_output/")
 {
   cl <- parallel::makeCluster(15)
@@ -466,13 +561,18 @@ setwd("~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/map_ou
   plot_map_list(error.maps, col = viridis::turbo(20)[3:18])
 }
 ```
-![](README_files/figure-html/map1_plot-1.png)<!-- -->
+
+![](README_files/figure-gfm/map1_plot-1.png)<!-- -->
 
 ## Removing gaps
-We addressed gaps in chromosomes 4 and 8 by eliminating one and three markers, respectively. While chromosome 10 exhibited a significant gap of 53.77 cM, we opted not to remove markers from its extremities. Doing so would have necessitated the removal of seven markers from the start and another five from the end, all of which were interlinked.
 
+We addressed gaps in chromosomes 4 and 8 by eliminating one and three
+markers, respectively. While chromosome 10 exhibited a significant gap
+of 53.77 cM, we opted not to remove markers from its extremities. Doing
+so would have removed seven markers from the start and another five from
+the end, all of which were interlinked.
 
-```r
+``` r
 final.maps <- error.maps
 plot_map_list(final.maps, col = viridis::turbo(20)[3:18])
 #### Chr 4 ####
@@ -483,88 +583,83 @@ print(final.maps[[8]], detailed = T)
 final.maps[[8]] <- drop_marker(final.maps[[8]], 1:3)
 ```
 
+## Computing posterior probabilities of the offspring homologs
 
-
-```r
+``` r
 genoprob <- vector("list", 15)
 for(i in 1:15){
   genoprob[[i]] <- calc_genoprob_error(final.maps[[i]], step = 1, error = 0.1)   
 }
-
 homologprob <- calc_homologprob(genoprob)
-
 save.image(file = "~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/result_5_3_10_400.rda")
 ```
 
+## Map summary and plots
 
-```r
+``` r
 summary_maps(final.maps)
 ```
 
-```
-## 
-## Your dataset contains removed (redundant) markers. Once finished the maps, remember to add them back with the function 'update_map'.
-```
+    ## 
+    ## Your dataset contains removed (redundant) markers. Once finished the maps, remember to add them back with the function 'update_map'.
 
-```
-##       LG Genomic sequence Map length (cM) Markers/cM Simplex Double-simplex
-## 1      1                1          191.72        0.4       9              4
-## 2      2                2          272.97       0.22       9              7
-## 3      3                3          248.63       0.31       3              9
-## 4      4                4          301.43       0.38      10              9
-## 5      5                5          206.77       0.57      20             11
-## 6      6                6          306.08       0.18       6              6
-## 7      7                7          201.79        0.4       2             11
-## 8      8                8          105.84       0.44       4              5
-## 9      9                9          198.46       0.41       5              9
-## 10    10               10          207.95       0.29       6              6
-## 11    11               11          200.66       0.27       1              4
-## 12    12               12           180.5       0.45       7              5
-## 13    13               13          279.06       0.28       6              9
-## 14    14               14          126.42       0.42       6              8
-## 15    15               15          195.85       0.27       7              4
-## 16 Total             <NA>         3224.13       0.35     101            107
-##    Multiplex Total Max gap
-## 1         63    76   17.98
-## 2         45    61   27.92
-## 3         66    78   17.52
-## 4         95   114   17.49
-## 5         87   118   22.83
-## 6         44    56   24.84
-## 7         68    81   19.92
-## 8         38    47   14.71
-## 9         68    82   16.96
-## 10        48    60   53.77
-## 11        49    54   18.16
-## 12        69    81   17.21
-## 13        63    78   22.38
-## 14        39    53   25.64
-## 15        42    53   16.57
-## 16       884  1092   22.26
-```
+    ##       LG Genomic sequence Map length (cM) Markers/cM Simplex Double-simplex
+    ## 1      1                1          191.72        0.4       9              4
+    ## 2      2                2          272.97       0.22       9              7
+    ## 3      3                3          248.63       0.31       3              9
+    ## 4      4                4          301.43       0.38      10              9
+    ## 5      5                5          206.77       0.57      20             11
+    ## 6      6                6          306.08       0.18       6              6
+    ## 7      7                7          201.79        0.4       2             11
+    ## 8      8                8          105.84       0.44       4              5
+    ## 9      9                9          198.46       0.41       5              9
+    ## 10    10               10          207.95       0.29       6              6
+    ## 11    11               11          200.66       0.27       1              4
+    ## 12    12               12           180.5       0.45       7              5
+    ## 13    13               13          279.06       0.28       6              9
+    ## 14    14               14          126.42       0.42       6              8
+    ## 15    15               15          195.85       0.27       7              4
+    ## 16 Total             <NA>         3224.13       0.35     101            107
+    ##    Multiplex Total Max gap
+    ## 1         63    76   17.98
+    ## 2         45    61   27.92
+    ## 3         66    78   17.52
+    ## 4         95   114   17.49
+    ## 5         87   118   22.83
+    ## 6         44    56   24.84
+    ## 7         68    81   19.92
+    ## 8         38    47   14.71
+    ## 9         68    82   16.96
+    ## 10        48    60   53.77
+    ## 11        49    54   18.16
+    ## 12        69    81   17.21
+    ## 13        63    78   22.38
+    ## 14        39    53   25.64
+    ## 15        42    53   16.57
+    ## 16       884  1092   22.26
 
-```r
+``` r
 plot_map_list(final.maps, col = viridis::turbo(20)[3:18])
 ```
 
-![](README_files/figure-html/plot-1.png)<!-- -->
+![](README_files/figure-gfm/plot-1.png)<!-- -->
 
-```r
+``` r
 plot_genome_vs_map(final.maps, same.ch.lg = TRUE, alpha = 1, size = 2)
 ```
 
-![](README_files/figure-html/plot-2.png)<!-- -->
+![](README_files/figure-gfm/plot-2.png)<!-- -->
 
-```r
+``` r
 plot(homologprob, use.plotly = FALSE)
 ```
 
-![](README_files/figure-html/plot-3.png)<!-- -->
+![](README_files/figure-gfm/plot-3.png)<!-- -->
 
-```r
+``` r
 for(i in 1:15){
   plot(final.maps[[i]], mrk.names = T, cex = .5, P = paste0("B_",i), Q = paste0("R_", i))  
 }
 ```
 
-![](README_files/figure-html/plot-4.png)<!-- -->![](README_files/figure-html/plot-5.png)<!-- -->![](README_files/figure-html/plot-6.png)<!-- -->![](README_files/figure-html/plot-7.png)<!-- -->![](README_files/figure-html/plot-8.png)<!-- -->![](README_files/figure-html/plot-9.png)<!-- -->![](README_files/figure-html/plot-10.png)<!-- -->![](README_files/figure-html/plot-11.png)<!-- -->![](README_files/figure-html/plot-12.png)<!-- -->![](README_files/figure-html/plot-13.png)<!-- -->![](README_files/figure-html/plot-14.png)<!-- -->![](README_files/figure-html/plot-15.png)<!-- -->![](README_files/figure-html/plot-16.png)<!-- -->![](README_files/figure-html/plot-17.png)<!-- -->![](README_files/figure-html/plot-18.png)<!-- -->
+![](README_files/figure-gfm/plot-4.png)<!-- -->![](README_files/figure-gfm/plot-5.png)<!-- -->![](README_files/figure-gfm/plot-6.png)<!-- -->![](README_files/figure-gfm/plot-7.png)<!-- -->![](README_files/figure-gfm/plot-8.png)<!-- -->![](README_files/figure-gfm/plot-9.png)<!-- -->![](README_files/figure-gfm/plot-10.png)<!-- -->![](README_files/figure-gfm/plot-11.png)<!-- -->![](README_files/figure-gfm/plot-12.png)<!-- -->![](README_files/figure-gfm/plot-13.png)<!-- -->![](README_files/figure-gfm/plot-14.png)<!-- -->![](README_files/figure-gfm/plot-15.png)<!-- -->![](README_files/figure-gfm/plot-16.png)<!-- -->![](README_files/figure-gfm/plot-17.png)<!-- -->![](README_files/figure-gfm/plot-18.png)<!-- -->

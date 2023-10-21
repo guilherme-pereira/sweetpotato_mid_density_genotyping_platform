@@ -1,5 +1,5 @@
 ---
-title: "Sweetpotato Analysis"
+title: "Using mid-density DarTag SNP platform to assess population structure and build a genetic map of a diverse sweetpotato population"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: github_document
 ---
@@ -39,9 +39,8 @@ load(file = "~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/
 
 # Auxiliary functions 
 
-This function get *Ipomea trifida* genome position in the pre-constructed by [Mollinari et al. 2020](https://doi.org/10.1534/g3.119.400620)
+This function retrieves the *Ipomea trifida* genome positions from the map pre-constructed by [Mollinari et al. 2020](https://doi.org/10.1534/g3.119.400620)
 ```{r aux_func1, results=FALSE, message=FALSE, warning=FALSE}
-#### Get I. trifida genome from BT map ####
 get_trifida<-function(x){
   x<-x[grepl("Tf", x)]
   w<-strsplit(x, "_")
@@ -57,7 +56,7 @@ get_trifida<-function(x){
 }
 ```
 
-The next functions will be used to build maps in multiple chromosomes using parallel processing
+The following functions are used to build maps across multiple chromosomes using parallel processing.
 
 ```{r aux_func2, results=FALSE, message=FALSE, warning=FALSE}
 phasing_and_hmm_rf<-function(X,
@@ -98,9 +97,9 @@ error_model<-function(X, error = 0.1, tol = 10e-4){
 }
 ```
 
-# Loading DArTag dose data
+# Loading DArTag data
+
 ```{r dart_data, eval = TRUE}
-## Loading Dart allele dose file
 dose.Dart <- read.csv("DSp22-7577_Allele_Dose_Report_updateID.csv",
                       skip = 7, row.names = 1)
 dim(dose.Dart)
@@ -114,14 +113,6 @@ dat.temp[is.na(dat.temp)] <- -9
 dat.temp <- dat.temp[,-which(apply(dat.temp, 2, function(x) sum(x==-9)) > .1*nrow(dat.temp))]
 #### Computing G matrix
 G.mat <- AGHmatrix::Gmatrix(dat.temp, method = "VanRaden", ploidy = 6)
-#### Different color for population partitions
-pop.part <- character(nrow(G.mat))
-pop.part[str_detect(rownames(G.mat), "BR")] <- "F1.BR"
-pop.part[str_detect(rownames(G.mat), "RB")] <- "F1.RB"
-pop.part[str_detect(rownames(G.mat), "BEAUREGARD")] <- "Beau"
-pop.part[str_detect(rownames(G.mat), "REGAL")] <- "Regal"
-pop.part[str_detect(rownames(G.mat), "CASE")] <- "F1.BU"
-pop.part[pop.part==""] <- "Pop"
 
 #### Heat map of G matrix (RB are mostly clustered)
 heatmap(G.mat)
@@ -145,13 +136,14 @@ CMplot::CMplot(u,type = "p", plot.type = "d", bin.size = 1e6,
 ```{r pca, eval = TRUE}
 G.mat <- G.mat[sort(rownames(G.mat)), sort(colnames(G.mat))]
 pop.part <- character(nrow(G.mat))
+
+#### Different color for population partitions
 pop.part[str_detect(rownames(G.mat), "BR")] <- "F1 Beauregard x Regal"
 pop.part[str_detect(rownames(G.mat), "RB")] <- "F1 Regal x Beauregard"
 pop.part[str_detect(rownames(G.mat), "BEAUREGARD")] <- "Beauregard"
 pop.part[str_detect(rownames(G.mat), "REGAL")] <- "Regal"
 pop.part[str_detect(rownames(G.mat), "CASE")] <- "F1 Beauregard x Uplift"
 pop.part[pop.part==""] <- "Diverse population"
-
 colors_vector <- c(
   "Beauregard"       = "#4053d3",
   "F1 Beauregard x Regal"     = "#ddb310",
@@ -190,7 +182,7 @@ legend(x = .3, y = -.35,
 
 ## Parsing data
 
-```{r parsing}
+```{r parsing, eval=TRUE, message=FALSE, warning=FALSE}
 #### Genetic mapping of F1 population
 f1 <- dose.Dart[,colnames(dose.Dart)[str_detect(colnames(dose.Dart), "BR") | str_detect(colnames(dose.Dart), "RB")]]
 p1<- dose.Dart[,colnames(dose.Dart)[str_detect(colnames(dose.Dart), "BEAUREGARD")]]
@@ -207,16 +199,19 @@ DF <- cbind(snp_id = names(mrk.id),
             chrom = chrom,
             genome_pos = genome.pos,
             f1[mrk.id,])
-dat.dart <- mappoly::table_to_mappoly(DF, ploidy = 6)
+dat.dart <- mappoly::table_to_mappoly(dat = DF, ploidy = 6, verbose = FALSE)
+dat.dart
 plot(dat.dart)
 ```
 
 ## Filtering
 
-```{r, filtering}
+```{r, filtering, eval=TRUE}
 #### Filtering ####
 dat.filt <- filter_missing(dat.dart, type = 'marker', filter.thres = 0.1, inter = FALSE)
+dat.filt$n.mrk
 dat.filt <- filter_missing(dat.filt, type = 'individual', filter.thres = 0.1, inter = FALSE)
+dat.filt$n.ind
 #### Filtering individuals that are not from B x R cross
 rm.ind <- c("RB3", "RB6", "RB11", "RB15", "RB22", "RB30", "RB41",
             "RB44", "RB46", "RB50", "RB52", "RB54", "RB56",
@@ -224,9 +219,12 @@ rm.ind <- c("RB3", "RB6", "RB11", "RB15", "RB22", "RB30", "RB41",
             "BR10", "BR13", "BR20", "BR21", "BR24", "BR26",
             "BR27", "BR28", "BR30", "BR31", "BR40", "BR41")
 dat.filt <- filter_individuals(input.data = dat.filt, ind.to.remove = rm.ind, inter = FALSE)
+dat.filt$n.mrk
+dat.filt$n.ind
 #### Filtering out distorted markers
 s.f <- filter_segregation(dat.filt, chisq.pval.thres = 0.05/dat.filt$n.mrk, inter = F)
 s <- make_seq_mappoly(s.f)
+length(s$seq.num)
 ```
 ```{r initial_sequence, eval=TRUE}
 s
@@ -303,7 +301,7 @@ plot_map_list(error.maps, col = viridis::turbo(20)[3:18])
 ```
 
 ## Removing gaps
-We addressed gaps in chromosomes 4 and 8 by eliminating one and three markers, respectively. While chromosome 10 exhibited a significant gap of 53.77 cM, we opted not to remove markers from its extremities. Doing so would have necessitated the removal of seven markers from the start and another five from the end, all of which were interlinked.
+We addressed gaps in chromosomes 4 and 8 by eliminating one and three markers, respectively. While chromosome 10 exhibited a significant gap of 53.77 cM, we opted not to remove markers from its extremities. Doing so would have removed seven markers from the start and another five from the end, all of which were interlinked.
 
 ```{r removing_gaps}
 final.maps <- error.maps
@@ -316,17 +314,18 @@ print(final.maps[[8]], detailed = T)
 final.maps[[8]] <- drop_marker(final.maps[[8]], 1:3)
 ```
 
+## Computing posterior probabilities of the offspring homologs
 
 ```{r genoprob}
 genoprob <- vector("list", 15)
 for(i in 1:15){
   genoprob[[i]] <- calc_genoprob_error(final.maps[[i]], step = 1, error = 0.1)   
 }
-
 homologprob <- calc_homologprob(genoprob)
-
 save.image(file = "~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/result_5_3_10_400.rda")
 ```
+
+## Map summary and plots
 
 ```{r plot, eval = TRUE}
 summary_maps(final.maps)
