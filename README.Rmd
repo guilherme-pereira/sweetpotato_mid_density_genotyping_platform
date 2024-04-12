@@ -199,7 +199,8 @@ DF <- cbind(snp_id = names(mrk.id),
             chrom = chrom,
             genome_pos = genome.pos,
             f1[mrk.id,])
-dat.dart <- mappoly::table_to_mappoly(dat = DF, ploidy = 6, verbose = FALSE)
+write.csv(DF, file = "DF.csv", quote=FALSE, row.names = FALSE)
+dat.dart <- mappoly::read_geno_csv(file.in = "DF.csv", ploidy = 6, verbose = FALSE)
 dat.dart
 plot(dat.dart)
 ```
@@ -236,7 +237,7 @@ plot(s)
 
 ```{r twopts}
 #### Two-points ####
-tpt <- est_pairwise_rf(s, ncpus = 32)
+tpt <- est_pairwise_rf(s, ncpus = 7)
 m <- rf_list_to_matrix(tpt, thresh.LOD.ph = 1.0, thresh.LOD.rf = 1.0)
 so <- make_seq_mappoly(get_genomic_order(s))
 plot(m, ord = so, fact = 5)
@@ -251,7 +252,7 @@ plot(m, ord = so, fact = 5)
 #### Assembling linkage groups (order based on genome) ####
 LGS <- vector("list", 15)
 #### loading BT map
-load("~/repos/collaborations/sweetpotato_mid_density_genotyping_platform/Mollinari_et_al_2020_BT_map.rda")
+load("Mollinari_et_al_2020_BT_map.rda")
 names(maps) <- names(LGS) <- 1:15
 #### preparing linkage groups for phasing
 for(i in names(LGS)){
